@@ -1,5 +1,5 @@
 {
-"tenantid": "f8906747-9eef-4a0f-a3f9-2167b8e6105e",
+"tenantid": "changeme",
 "azureResourceGroup": "AZLab",
 "vmHostNameAD": "AZLAB-ADDS-01",
 "vmHostNameSQL": "AZLAB-MSQL-01",
