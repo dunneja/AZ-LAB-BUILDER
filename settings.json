@@ -1,13 +1,16 @@
 {
-"tenantid": "ChangeMe",
+"tenantid": "f8906747-9eef-4a0f-a3f9-2167b8e6105e",
 "azureResourceGroup": "AZLab",
 "azureRegionLocation": "UKSouth",
 "vmHostNameAD": "AZLAB-ADDS-01",
-"vmHostNameSQL": "AZLAB-MSQL-01",
+"vmHostNameSQL": "AZLAB-SQL-01",
 "vmHostNameNix": "AZLAB-VPN-01",
+"vmHostNameHPA": "AZLAB-HPA-01",
+"vmHostNameWJA": "AZLAB-WJA-01",
+"vmHostNameHPSM": "AZLAB-HPSM-01",
 "vmAdminUser": "labadmin", 
-"vmAdminPwd": "ChangeMe", 
-"azureVMRebootTimeout": "120",
+"vmAdminPwd": "Jx918591@700567", 
+"azureVMRebootTimeout": "60",
 "azureNicName": "_vNic_1",
 "azureNsgName":  "_NSG",
 "azureVmOsDiskname": "_osDisk_1",
@@ -31,5 +34,5 @@
 "azureDNSNameLabel": "azlab", 
 "azureStorageAccountType": "Standard_LRS",
 "LinuxVPNIPRange": "10.10.10.0/24",
-"sslEmailNotification": "ChangeMe"
+"sslEmailNotification": "labadmin@azlab.uk"
 }
