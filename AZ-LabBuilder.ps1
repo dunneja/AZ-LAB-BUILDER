@@ -10,6 +10,10 @@
 #                All settings should be changed in Settings.json Only! 
 # ----------------------------------------------------------------------------
 
+# TODO: Refactor Windows Server individual functions into a single reuseable.
+# TODO: Look at Azure Internal DNS Alias For Each Server.
+# TODO: Look at setting dns server on vm nic at vnic provision for each vm.
+
 # ----------------------------------------------------------------------------
 # File Import Process - Settings.json <-- edit to change settings.
 # ----------------------------------------------------------------------------
@@ -46,6 +50,15 @@ $azureVmSize             = $SettingsObject.azureVmSize
 # Define AD Server Details.
 $vmHostNameAD	         = $SettingsObject.vmHostNameAD
 
+# Define HPA Server Details.
+$vmHostNameHPA	         = $SettingsObject.vmHostNameHPA
+
+# Define WJA Server Details.
+$vmHostNameWJA	         = $SettingsObject.vmHostNameWJA
+
+# Define HPSM Server Details.
+$vmHostNameHPSM	         = $SettingsObject.vmHostNameHPSM
+
 # Define the Windows VM marketplace image details.
 $azureVmPublisherName    = $SettingsObject.azureVmPublisherName
 $azureVmOffer            = $SettingsObject.azureVmOffer 
@@ -61,6 +74,7 @@ $azureVmSkusSQL          = $SettingsObject.azureVmSkusSQL
 
 # Define Linux Server Details.
 $vmHostNameNix	         = $SettingsObject.vmHostNameNix
+
 #Define the Linux VM marketplace image details.
 $azureVmPublisherNameNix = $SettingsObject.azureVmPublisherNameNix
 $azureVmOfferNix         = $SettingsObject.azureVmOfferNix
@@ -73,6 +87,9 @@ $azureVMVersion          = $SettingsObject.azureVMVersion
 $azureVmOsDiskNameAD     = $vmHostNameAD + $SettingsObject.azureVmOsDiskName
 $azureVmOsDiskNameSQL    = $vmHostNameSQL + $SettingsObject.azureVmOsDiskName
 $azureVmOsDiskNameNix    = $vmHostNameNix + $SettingsObject.azureVmOsDiskName
+$azureVmOsDiskNameWJA    = $vmHostNameWJA + $SettingsObject.azureVmOsDiskName
+$azureVmOsDiskNameHPA    = $vmHostNameHPA + $SettingsObject.azureVmOsDiskName
+$azureVmOsDiskNameHPSM   = $vmHostNameHPSM + $SettingsObject.azureVmOsDiskName
 $azureStorageAccountType = $SettingsObject.azureStorageAccountType
 
 # ----------------------------------------------------------------------------
@@ -89,11 +106,23 @@ $azureSubnetName         = $SettingsObject.azureSubnetName
 $azureNicNameAD          = $vmHostNameAD + $SettingsObject.azureNicName
 $azureNsgNameAD          = $vmHostNameAD + $SettingsObject.azureNsgName
 
-# Define the information information for SQL server.
+# Define the network information for SQL server.
 $azureNicNameSQL         = $vmHostNameSQL + $SettingsObject.azureNicName
 $azureNsgNameSQL         = $vmHostNameSQL + $SettingsObject.azureNsgName
 
-# Define the information information for Linux server.
+# Define the network information for HPA Server.
+$azureNicNameHPA         = $vmHostNameHPA + $SettingsObject.azureNicName
+$azureNsgNameHPA         = $vmHostNameHPA + $SettingsObject.azureNsgName
+
+# Define the network information for WJA Server.
+$azureNicNameWJA         = $vmHostNameWJA + $SettingsObject.azureNicName
+$azureNsgNameWJA         = $vmHostNameWJA + $SettingsObject.azureNsgName
+
+# Define the network information for HPSM Server.
+$azureNicNameHPSM        = $vmHostNameHPSM + $SettingsObject.azureNicName
+$azureNsgNameHPSM        = $vmHostNameHPSM + $SettingsObject.azureNsgName
+
+# Define the network information for Linux VPN server.
 $azureNicNameNix         = $vmHostNameNix + $SettingsObject.azureNicName
 $azureNsgNameNix         = $vmHostNameNix + $SettingsObject.azureNsgName
 $azurePublicIpName       = $vmHostNameNix + $SettingsObject.azurePublicIpName
@@ -130,7 +159,19 @@ function Header {
         Write-Host "        * $vmHostNameSQL - SQL Virtual Machine"
         Write-Host "        * $azureNicNameSQL - SQL VM Virtual Network Card"
         Write-Host "        * $azureVmOsDiskNameSQL - SQL VM OS Disk"
-        Write-Host "        * $azureNsgNameSQL - SQL VM Network Security Group`n"
+        Write-Host "        * $azureNsgNameSQL - HPA VM Network Security Group`n"
+        Write-Host "        * $vmHostNameHPA - HPA Virtual Machine"
+        Write-Host "        * $azureNicNameHPA - HPA VM Virtual Network Card"
+        Write-Host "        * $azureVmOsDiskNameHPA - HPA VM OS Disk"
+        Write-Host "        * $azureNsgNameHPA - HPA VM Network Security Group`n"
+        Write-Host "        * $vmHostNameWJA - WJA Virtual Machine"
+        Write-Host "        * $azureNicNameWJA - WJA VM Virtual Network Card"
+        Write-Host "        * $azureVmOsDiskNameWJA - WJA VM OS Disk"
+        Write-Host "        * $azureNsgNameWJA - WJA VM Network Security Group`n"
+        Write-Host "        * $vmHostNameHPSM - HPSM Virtual Machine"
+        Write-Host "        * $azureNicNameHPSM - HPSM VM Virtual Network Card"
+        Write-Host "        * $azureVmOsDiskNameHPSM - HPSM VM OS Disk"
+        Write-Host "        * $azureNsgNameHPSM - HPSM VM Network Security Group`n"
         Write-Host "This script will deploy the following services to VM $vmHostNameAD :`n"
         Write-Host "        * Active Directory Domain Services`n"
         Write-Host "          - The Domain $adDomain will be created automatically`n"
@@ -144,8 +185,7 @@ function Header {
         Write-Host $line
         Write-Host "NOTE: Edit 'Settings.json' to change any of the above parameters"
         Write-Host $line
-        Write-Host "`n"
-        Read-Host "All ready, press any key to continue with Azure Account Connect or 'CTRL-C' to Quit."
+        Read-Host "`nAll ready, press any key to continue with Azure Account Connect or 'CTRL-C' to Quit."
 }
 # ----------------------------------------------------------------------------
 # Function - Azure Dependencies Check function. Installs what is missing. 
@@ -254,8 +294,6 @@ function CreateADVMResources {
     New-AzVM -ResourceGroupName $azureResourceGroup -Location $azureLocation -VM $VirtualMachine -Verbose | Out-null
     Write-Host "`n  * Getting Network Adapter Interface Index Value & Configuring DNS Servers`n"
     Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameSQL -CommandId 'RunPowerShellScript' -ScriptString "set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Select -ExpandProperty 'InterfaceIndex') -ServerAddresses ('10.0.0.4','8.8.8.8')" | Out-null
-    Write-Host "  * Registering $vmHostNameSQL to DNS Zone $adDomain" 
-    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameSQL -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.5'" | Out-null
     }
 # ----------------------------------------------------------------------------
 # Function - Create Linux VPN Server Virtual Machine & Resources.
@@ -292,6 +330,108 @@ Function CreateNixVMResources {
     Write-Host "  * Creating new Linux VM $vmHostNameNix `n"
     #Create the virtual machine.
     New-AzVM -ResourceGroupName $azureResourceGroup -Location $azureLocation -VM $VirtualMachine -Verbose | Out-null
+}
+# ----------------------------------------------------------------------------
+# Function - Create WebJet Admin Server Virtual Machine & Resources.
+# ----------------------------------------------------------------------------
+function CreateWJAVMResources {
+    Write-Host "  * Gathering vNet/Subnet Information from $azureVnetName\$azureSubnetName`n"
+    # Get the subnet details for the specified virtual network + subnet combination.
+    $azureVnetSubnet = (Get-AzVirtualNetwork -Name $azureVnetName -ResourceGroupName $azureResourceGroup).Subnets | Where-Object { $_.Name -eq $azureSubnetName }
+    Write-Host "  * Creating Security Rule/s and Network Security Group $azureNsgNameWJA `n"
+    # Create RDP Security Rule for Azure Vnet.
+    $rdpRule = New-AzNetworkSecurityRuleConfig -Name "Allow_RDP" -Description "Allow RDP" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $LinuxVPNIPRange -SourcePortRange * -DestinationAddressPrefix $azureVnetIPRange -DestinationPortRange 3389
+    # Create Network Security Group
+    $nsGroup = New-AzNetworkSecurityGroup -ResourceGroupName $azureResourceGroup -Location $azureLocation -Name $azureNsgNameAD -SecurityRules $rdpRule
+    Write-Host "  * Creating vNic $azureNicNameWJA`n"
+    # Create the NIC and associate the private subnet.
+    $azureNIC = New-AzNetworkInterface -Name $azureNicNameWJA -ResourceGroupName $azureResourceGroup -Location $azureLocation -SubnetId $azureVnetSubnet.Id
+    # Associate the NSG to the NIC
+    $azureNIC.NetworkSecurityGroup = $nsGroup
+    Set-AzNetworkInterface -NetworkInterface $azureNIC | Out-null
+    # Store the credentials for the local admin account.
+    $vmCredentials = New-Object System.Management.Automation.PSCredential ($vmAdminUser, $azureSecureStringPwd)
+    Write-Host "  * Defining Settings for new VM $vmHostNameWJA `n"
+    # Define the parameters for the new virtual machine.
+    $VirtualMachine = New-AzVMConfig -VMName $vmHostNameWJA -VMSize $azureVmSize
+    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $vmHostNameWJA -Credential $vmCredentials -ProvisionVMAgent -EnableAutoUpdate
+    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $azureNIC.Id
+    $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $azureVmPublisherName -Offer $azureVmOffer -Skus $azureVmSkus -Version $azureVMVersion
+    $VirtualMachine = Set-AzVMBootDiagnostic -VM $VirtualMachine -Disable
+    $VirtualMachine = Set-AzVMOSDisk -VM $VirtualMachine -StorageAccountType $azureStorageAccountType -Caching ReadWrite -Name $azureVmOsDiskNameWJA -CreateOption FromImage
+    Write-Host "  * Creating new VM $vmHostNameWJA `n"
+    # Create the virtual machine.
+    New-AzVM -ResourceGroupName $azureResourceGroup -Location $azureLocation -VM $VirtualMachine -Verbose | Out-null
+    Write-Host "`n  * Getting Network Adapter Interface Index Value & Configuring DNS Servers`n"
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameWJA -CommandId 'RunPowerShellScript' -ScriptString "set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Select -ExpandProperty 'InterfaceIndex') -ServerAddresses ('10.0.0.4','8.8.8.8')" | Out-null
+}
+# ----------------------------------------------------------------------------
+# Function - Create HP Advance Server Virtual Machine & Resources.
+# ----------------------------------------------------------------------------
+function CreateHPAVMResources {
+    Write-Host "  * Gathering vNet/Subnet Information from $azureVnetName\$azureSubnetName`n"
+    # Get the subnet details for the specified virtual network + subnet combination.
+    $azureVnetSubnet = (Get-AzVirtualNetwork -Name $azureVnetName -ResourceGroupName $azureResourceGroup).Subnets | Where-Object { $_.Name -eq $azureSubnetName }
+    Write-Host "  * Creating Security Rule/s and Network Security Group $azureNsgNameHPA `n"
+    # Create RDP Security Rule for Azure Vnet.
+    $rdpRule = New-AzNetworkSecurityRuleConfig -Name "Allow_RDP" -Description "Allow RDP" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $LinuxVPNIPRange -SourcePortRange * -DestinationAddressPrefix $azureVnetIPRange -DestinationPortRange 3389
+    # Create Network Security Group
+    $nsGroup = New-AzNetworkSecurityGroup -ResourceGroupName $azureResourceGroup -Location $azureLocation -Name $azureNsgNameHPA -SecurityRules $rdpRule
+    Write-Host "  * Creating vNic $azureNicNameHPA`n"
+    # Create the NIC and associate the private subnet.
+    $azureNIC = New-AzNetworkInterface -Name $azureNicNameHPA -ResourceGroupName $azureResourceGroup -Location $azureLocation -SubnetId $azureVnetSubnet.Id
+    # Associate the NSG to the NIC
+    $azureNIC.NetworkSecurityGroup = $nsGroup
+    Set-AzNetworkInterface -NetworkInterface $azureNIC | Out-null
+    # Store the credentials for the local admin account.
+    $vmCredentials = New-Object System.Management.Automation.PSCredential ($vmAdminUser, $azureSecureStringPwd)
+    Write-Host "  * Defining Settings for new VM $vmHostNameHPA `n"
+    # Define the parameters for the new virtual machine.
+    $VirtualMachine = New-AzVMConfig -VMName $vmHostNameHPA -VMSize $azureVmSize
+    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $vmHostNameHPA -Credential $vmCredentials -ProvisionVMAgent -EnableAutoUpdate
+    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $azureNIC.Id
+    $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $azureVmPublisherName -Offer $azureVmOffer -Skus $azureVmSkus -Version $azureVMVersion
+    $VirtualMachine = Set-AzVMBootDiagnostic -VM $VirtualMachine -Disable
+    $VirtualMachine = Set-AzVMOSDisk -VM $VirtualMachine -StorageAccountType $azureStorageAccountType -Caching ReadWrite -Name $azureVmOsDiskNameHPA -CreateOption FromImage
+    Write-Host "  * Creating new VM $vmHostNameHPA `n"
+    # Create the virtual machine.
+    New-AzVM -ResourceGroupName $azureResourceGroup -Location $azureLocation -VM $VirtualMachine -Verbose | Out-null
+    Write-Host "`n  * Getting Network Adapter Interface Index Value & Configuring DNS Servers`n"
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameHPA -CommandId 'RunPowerShellScript' -ScriptString "set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Select -ExpandProperty 'InterfaceIndex') -ServerAddresses ('10.0.0.4','8.8.8.8')" | Out-null
+}
+# ----------------------------------------------------------------------------
+# Function - Create HP Security Manager Server Virtual Machine & Resources.
+# ----------------------------------------------------------------------------
+function CreateHPSMVMResources {
+    Write-Host "  * Gathering vNet/Subnet Information from $azureVnetName\$azureSubnetName`n"
+    # Get the subnet details for the specified virtual network + subnet combination.
+    $azureVnetSubnet = (Get-AzVirtualNetwork -Name $azureVnetName -ResourceGroupName $azureResourceGroup).Subnets | Where-Object { $_.Name -eq $azureSubnetName }
+    Write-Host "  * Creating Security Rule/s and Network Security Group $azureNsgNameHPSM `n"
+    # Create RDP Security Rule for Azure Vnet.
+    $rdpRule = New-AzNetworkSecurityRuleConfig -Name "Allow_RDP" -Description "Allow RDP" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $LinuxVPNIPRange -SourcePortRange * -DestinationAddressPrefix $azureVnetIPRange -DestinationPortRange 3389
+    # Create Network Security Group
+    $nsGroup = New-AzNetworkSecurityGroup -ResourceGroupName $azureResourceGroup -Location $azureLocation -Name $azureNsgNameHPSM -SecurityRules $rdpRule
+    Write-Host "  * Creating vNic $azureNicNameHPSM`n"
+    # Create the NIC and associate the private subnet.
+    $azureNIC = New-AzNetworkInterface -Name $azureNicNameHPSM -ResourceGroupName $azureResourceGroup -Location $azureLocation -SubnetId $azureVnetSubnet.Id
+    # Associate the NSG to the NIC
+    $azureNIC.NetworkSecurityGroup = $nsGroup
+    Set-AzNetworkInterface -NetworkInterface $azureNIC | Out-null
+    # Store the credentials for the local admin account.
+    $vmCredentials = New-Object System.Management.Automation.PSCredential ($vmAdminUser, $azureSecureStringPwd)
+    Write-Host "  * Defining Settings for new VM $vmHostNameHPSM `n"
+    # Define the parameters for the new virtual machine.
+    $VirtualMachine = New-AzVMConfig -VMName $vmHostNameHPA -VMSize $azureVmSize
+    $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $vmHostNameHPSM -Credential $vmCredentials -ProvisionVMAgent -EnableAutoUpdate
+    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $azureNIC.Id
+    $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $azureVmPublisherName -Offer $azureVmOffer -Skus $azureVmSkus -Version $azureVMVersion
+    $VirtualMachine = Set-AzVMBootDiagnostic -VM $VirtualMachine -Disable
+    $VirtualMachine = Set-AzVMOSDisk -VM $VirtualMachine -StorageAccountType $azureStorageAccountType -Caching ReadWrite -Name $azureVmOsDiskNameHPSM -CreateOption FromImage
+    Write-Host "  * Creating new VM $vmHostNameHPSM `n"
+    # Create the virtual machine.
+    New-AzVM -ResourceGroupName $azureResourceGroup -Location $azureLocation -VM $VirtualMachine -Verbose | Out-null
+    Write-Host "`n  * Getting Network Adapter Interface Index Value & Configuring DNS Servers`n"
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameHPSM -CommandId 'RunPowerShellScript' -ScriptString "set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter | Select -ExpandProperty 'InterfaceIndex') -ServerAddresses ('10.0.0.4','8.8.8.8')" | Out-null
 }
 # ----------------------------------------------------------------------------
 # Function - Install Active Directory Domain Services Function.
@@ -372,9 +512,22 @@ function AddVPNSvc {
     Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameNix -CommandId 'RunShellScript' -Scripts "sudo apt remove libpam-cap -y" | Out-null
     Write-Host "  * Restarting the UFW Service`n"
     Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameNix -CommandId 'RunShellScript' -Scripts "sudo systemctl restart ufw" | Out-null
-    Write-Host "  * Registering $vmHostNameNix to DNS Zone $adDomain`n" 
-    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameNix -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.6'" | Out-null
     Write-Host "  * ocserv / Open Connect VPN Service is now configured"
+}
+# ----------------------------------------------------------------------------
+# Function - Register all VMs in the AZLAB Windows DNS Server. 
+# ----------------------------------------------------------------------------
+function adDNSRecords {
+    Write-Host "  * Registering $vmHostNameSQL to DNS Zone $adDomain `n" 
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameSQL -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.5'" | Out-null
+    Write-Host "  * Registering $vmHostNameNix to DNS Zone $adDomain `n" 
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameNix -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.6'" | Out-null
+    Write-Host "  * Registering $vmHostNameHPA to DNS Zone $adDomain `n" 
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameHPA -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.7'" | Out-null
+    Write-Host "  * Registering $vmHostNameWJA to DNS Zone $adDomain `n" 
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameWJA -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.8'" | Out-null
+    Write-Host "  * Registering $vmHostNameHPSM to DNS Zone $adDomain `n" 
+    Invoke-AzVMRunCommand -ResourceGroupName $azureResourceGroup -Name $vmHostNameAD -CommandId 'RunPowerShellScript' -ScriptString "Add-DnsServerResourceRecordA -Name $vmHostNameHPSM -ZoneName $adDomain -AllowUpdateAny -IPv4Address '10.0.0.9'" | Out-null
 }
 # ----------------------------------------------------------------------------
 # Function - List All Resources Created In The Specified Resource Group.
@@ -442,8 +595,24 @@ CreateNixVMResources
 Write-Host "`nStep 9) - Installing Open Connect (OCServ) VPN service on Linux Virtual Machine.`n"
 AddVPNSvc
 
-# Step 10 - Display Resources Deployed.
-Write-Host "`nStep 10) - Displaying All Resources Deployed.`n"
+# Step 10 - Create HP Advance VM Resources. 
+Write-Host "`nStep 10) - Provisioning HP Advance Server Virtual Machine.`n"
+CreateHPAVMResources
+
+# Step 11 - Create HP Webjet Admin VM Resources. 
+Write-Host "`nStep 11) - Provisioning HP Webjet Admin Server Virtual Machine.`n"
+CreateWJAVMResources
+
+# Step 12 - Create HP Security Manager VM Resources. 
+Write-Host "`nStep 12) - Provisioning HP Security Manager Server Virtual Machine.`n"
+CreateHPSMVMResources
+
+# Step 13 - Create VM DNS Records. 
+Write-Host "`nStep 13) - Registering DNS Records For Virtual Servers In ADDS DNS.`n"
+adDNSRecords 
+
+# Step 14 - Display Resources Deployed.
+Write-Host "`nStep 14) - Displaying All Resources Deployed.`n"
 AZRGList
 
 # End - Display Footer.
